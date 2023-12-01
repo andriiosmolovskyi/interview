@@ -1,29 +1,34 @@
 package forex
 
-import scala.concurrent.ExecutionContext
-
+import cats.arrow.FunctionK
 import cats.effect._
+import com.comcast.ip4s.{ Host, Port }
 import forex.config._
-import fs2.Stream
-import org.http4s.server.blaze.BlazeServerBuilder
+import forex.util.{ futureToIOMapper, ioToFutureMapper }
+import fs2.io.net.Network
+import org.http4s.ember.server.EmberServerBuilder
+import org.http4s.server.Server
+
+import scala.concurrent.Future
 
 object Main extends IOApp {
-
   override def run(args: List[String]): IO[ExitCode] =
-    new Application[IO].stream(executionContext).compile.drain.as(ExitCode.Success)
-
+    new Application[IO].build(futureToIOMapper, ioToFutureMapper(runtime)).use(_ => IO.never).as(ExitCode.Success)
 }
 
-class Application[F[_]: ConcurrentEffect: Timer] {
+class Application[F[_]: Async] {
 
-  def stream(ec: ExecutionContext): Stream[F, Unit] =
-    for {
-      config <- Config.stream("app")
-      module = new Module[F](config)
-      _ <- BlazeServerBuilder[F](ec)
-            .bindHttp(config.http.port, config.http.host)
-            .withHttpApp(module.httpApp)
-            .serve
-    } yield ()
+  def build(mapper: FunctionK[Future, F],
+            mapperF: FunctionK[F, Future])(implicit network: Network[F]): Resource[F, Server] = {
+    val config = Config.load("app")
+    val module = new Module[F](config, mapper, mapperF)
+
+    EmberServerBuilder
+      .default[F]
+      .withHost(Host.fromString(config.http.host).get)
+      .withPort(Port.fromInt(config.http.port).get)
+      .withHttpApp(module.httpApp)
+      .build
+  }
 
 }

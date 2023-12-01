@@ -1,24 +1,32 @@
 package forex
 
-import cats.effect.{ Concurrent, Timer }
+import cats.arrow.FunctionK
+import cats.effect.Async
 import forex.config.ApplicationConfig
 import forex.http.rates.RatesHttpRoutes
-import forex.services._
 import forex.programs._
+import forex.services._
+import fs2.io.net.Network
 import org.http4s._
-import org.http4s.implicits._
+import org.http4s.ember.client.EmberClientBuilder
 import org.http4s.server.middleware.{ AutoSlash, Timeout }
 
-class Module[F[_]: Concurrent: Timer](config: ApplicationConfig) {
+import scala.concurrent.Future
+import scala.concurrent.duration.DurationInt
 
-  private val ratesService: RatesService[F] = RatesServices.dummy[F]
+class Module[F[_]: Async](config: ApplicationConfig, mapper: FunctionK[Future, F], mapperF: FunctionK[F, Future])(
+    implicit network: Network[F]
+) {
 
-  private val ratesProgram: RatesProgram[F] = RatesProgram[F](ratesService)
+  private val clientResource = EmberClientBuilder.default[F].withTimeout(5.seconds).build
 
-  private val ratesHttpRoutes: HttpRoutes[F] = new RatesHttpRoutes[F](ratesProgram).routes
+  private val httpRatesService: RatesService[F]   = RatesServices.http[F](clientResource, config.oneFrame)
+  private val cachedRatesService: RatesService[F] = RatesServices.cached[F](httpRatesService, mapper, mapperF)
+  private val ratesProgram: RatesProgram[F]       = RatesProgram[F](cachedRatesService)
+  private val ratesHttpRoutes: HttpRoutes[F]      = new RatesHttpRoutes[F](ratesProgram).routes
 
-  type PartialMiddleware = HttpRoutes[F] => HttpRoutes[F]
-  type TotalMiddleware   = HttpApp[F] => HttpApp[F]
+  private type PartialMiddleware = HttpRoutes[F] => HttpRoutes[F]
+  private type TotalMiddleware   = HttpApp[F] => HttpApp[F]
 
   private val routesMiddleware: PartialMiddleware = {
     { http: HttpRoutes[F] =>

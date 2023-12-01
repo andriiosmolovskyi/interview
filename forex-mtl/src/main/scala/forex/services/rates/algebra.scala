@@ -1,8 +1,8 @@
 package forex.services.rates
 
-import forex.domain.Rate
+import forex.domain.{Pair, Rate}
 import errors._
 
 trait Algebra[F[_]] {
-  def get(pair: Rate.Pair): F[Error Either Rate]
+  def get(pair: Pair): F[Error Either Rate]
 }

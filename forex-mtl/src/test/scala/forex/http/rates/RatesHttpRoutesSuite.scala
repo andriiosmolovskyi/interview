@@ -86,6 +86,35 @@ class RatesHttpRoutesSuite extends AnyWordSpec with Matchers with MockitoSugar w
 
       check[Json](response, Status.BadRequest, Some(expectedJson)) shouldBe true
     }
+
+    "work properly when rates are equal" in {
+      val pair = Pair(Currency.USD, Currency.USD)
+      val expectedJson = Json.obj(
+        "msg" := "Error during rates request, rates should not be equal, from = USD, to = USD"
+      )
+
+      val response = routes
+        .run {
+          Request(Method.GET, Uri.fromString(s"/rates?from=${pair.from.show}&to=${pair.to.show}").toOption.get)
+        }
+        .getOrRaise(new NullPointerException())
+
+      check[Json](response, Status.BadRequest, Some(expectedJson)) shouldBe true
+    }
+
+    "work properly when rates are wrong" in {
+      val expectedJson = Json.obj(
+        "msg" := "Error during decoding currencies for rates request, from = Some(USD), to = None"
+      )
+
+      val response = routes
+        .run {
+          Request(Method.GET, Uri.fromString(s"/rates?from=USD&to=UAH").toOption.get)
+        }
+        .getOrRaise(new NullPointerException())
+
+      check[Json](response, Status.BadRequest, Some(expectedJson)) shouldBe true
+    }
   }
 
   // Return true if match succeeds; otherwise false

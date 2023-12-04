@@ -20,6 +20,11 @@ class RatesHttpRoutes[F[_]: Sync](rates: RatesProgram[F]) extends Http4sDsl[F] w
   private[http] val prefixPath = "/rates"
 
   private val httpRoutes: HttpRoutes[F] = HttpRoutes.of[F] {
+    case GET -> Root :? FromQueryParam(Some(from)) +& ToQueryParam(Some(to)) if from == to =>
+      val error = RateLookupFailed(s"Error during rates request, rates should not be equal, from = $from, to = $to")
+      logger.warn(error.getMessage)
+
+      BadRequest(error.asJson)
     case GET -> Root :? FromQueryParam(Some(from)) +& ToQueryParam(Some(to)) =>
       rates.get(RatesProgramProtocol.GetRatesRequest(from, to)).flatMap {
         case Right(rate) =>

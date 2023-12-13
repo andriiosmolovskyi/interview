@@ -16,6 +16,7 @@ object Dependencies {
     val scalaTest           = "3.2.17"
     val catsScalaCheck      = "0.3.2"
     val scaffeine           = "5.2.1"
+    val akka                = "2.9.0"
     val mockitoScalatest    = "3.2.17.0"
   }
 
@@ -38,6 +39,7 @@ object Dependencies {
     lazy val fs2                 = "co.fs2"                %% "fs2-core"                   % Versions.fs2
     lazy val pureConfig          = "com.github.pureconfig" %% "pureconfig"                 % Versions.pureConfig
     lazy val scaffeine           = "com.github.blemale"    %% "scaffeine"                  % Versions.scaffeine
+    lazy val akka                = "com.typesafe.akka"     %% "akka-actor"                 % Versions.akka
 
     // Compiler plugins
     lazy val kindProjector       = "org.typelevel"         %% "kind-projector"             % Versions.kindProjector     cross CrossVersion.full

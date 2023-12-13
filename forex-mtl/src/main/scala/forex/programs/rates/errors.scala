@@ -1,6 +1,6 @@
 package forex.programs.rates
 
-import forex.services.rates.errors.{OneFrameLookupFailed, OneFrameLookupNotFound, Error => RatesServiceError}
+import forex.services.rates.errors.{OneFrameLookupBadResponse, OneFrameLookupFailed, OneFrameLookupNotFound, Error => RatesServiceError}
 
 object errors {
 
@@ -13,7 +13,8 @@ object errors {
   }
 
   def toProgramError(error: RatesServiceError): Error = error match {
-    case OneFrameLookupNotFound(msg) => Error.RateNotFound(msg)
-    case OneFrameLookupFailed(msg)   => Error.RateLookupFailed(msg)
+    case OneFrameLookupNotFound(msg)     => Error.RateNotFound(msg)
+    case OneFrameLookupFailed(msg)       => Error.RateLookupFailed(msg)
+    case OneFrameLookupBadResponse(msg)  => Error.RateLookupFailed(msg)
   }
 }

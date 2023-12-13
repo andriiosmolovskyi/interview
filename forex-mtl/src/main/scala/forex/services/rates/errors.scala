@@ -12,6 +12,7 @@ object errors {
   }
 
   final case class OneFrameLookupNotFound private (msg: String) extends Error
+  final case class OneFrameLookupBadResponse private (msg: String) extends Error
   final case class OneFrameLookupFailed private (msg: String) extends Error
 
   def notFound(pairs: List[Pair]): Error = OneFrameLookupNotFound(
@@ -22,7 +23,7 @@ object errors {
     s"Not found rates from OneFrame for pair ${pair.show}"
   )
 
-  def unexpected(pairs: List[Pair], status: Status, body: String): Error = OneFrameLookupFailed(
+  def unexpected(pairs: List[Pair], status: Status, body: String): Error = OneFrameLookupBadResponse(
     s"Error during getting rates from OneFrame for pairs ${pairs.map(_.show).mkString(" ,")}, " +
       s"status is: ${status.show}, response is: $body"
   )

@@ -48,6 +48,7 @@ The application can be configured using the following environment variables:
 
 - `$PORT`: Specifies the port for the application.
 - `$BASE_URI`: Specifies the base URI for OneFrame.
+- `$SCHEDULER_MODE`: Is scheduler mode enabled.
 - `$TOKEN`: Specifies the token for authentication.
 
 Alternatively, you can modify the values in the `src/main/resources/application.conf` file.

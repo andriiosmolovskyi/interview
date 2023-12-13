@@ -4,8 +4,8 @@ import cats.Show
 import cats.implicits.toShow
 
 final case class Pair(
-    from: Currency,
-    to: Currency
+    from: Currency.Currency,
+    to: Currency.Currency
 )
 
 object Pair {

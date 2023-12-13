@@ -38,10 +38,10 @@ trait JsonProtocol {
   implicit lazy val responseEncoder: Encoder[GetApiResponse] = deriveConfiguredEncoder[GetApiResponse]
   implicit lazy val responseDecoder: Decoder[GetApiResponse] = deriveConfiguredDecoder[GetApiResponse]
 
-  implicit lazy val currencyEncoder: Encoder[Currency] =
-    Encoder.instance[Currency] { show.show _ andThen Json.fromString }
-  implicit lazy val currencyDecoder: Decoder[Currency] =
-    Decoder.instance[Currency] {
+  implicit lazy val currencyEncoder: Encoder[Currency.Currency] =
+    Encoder.instance[Currency.Currency] { show.show _ andThen Json.fromString }
+  implicit lazy val currencyDecoder: Decoder[Currency.Currency] =
+    Decoder.instance[Currency.Currency] {
       _.value
         .as[String]
         .flatMap(
@@ -66,8 +66,8 @@ trait JsonProtocol {
   }
 
   implicit lazy val rateDecoder: Decoder[Rate] = Decoder.instance { c =>
-    val from      = c.downField("from").as[Currency]
-    val to        = c.downField("to").as[Currency]
+    val from      = c.downField("from").as[Currency.Currency]
+    val to        = c.downField("to").as[Currency.Currency]
     val price     = c.downField("price").as[Price]
     val timestamp = c.downField("time_stamp").as[Timestamp]
 

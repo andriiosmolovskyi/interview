@@ -21,8 +21,9 @@ class RatesHttpRoutes[F[_]: Sync](rates: RatesProgram[F]) extends Http4sDsl[F] w
 
   private val httpRoutes: HttpRoutes[F] = HttpRoutes.of[F] {
     case GET -> Root :? FromQueryParam(Some(from)) +& ToQueryParam(Some(to)) if from == to =>
-      val error = RateLookupFailed(s"Error during rates request, rates should not be equal, from = $from, to = $to")
-      logger.warn(error.getMessage)
+      val msg = s"Error during rates request, rates should not be equal, from = $from, to = $to"
+      val error = RateLookupFailed(msg)
+      logger.warn(msg)
 
       BadRequest(error.asJson)
     case GET -> Root :? FromQueryParam(Some(from)) +& ToQueryParam(Some(to)) =>
@@ -35,8 +36,9 @@ class RatesHttpRoutes[F[_]: Sync](rates: RatesProgram[F]) extends Http4sDsl[F] w
           BadRequest(e.asJson)
       }
     case GET -> Root :? FromQueryParam(from) +& ToQueryParam(to) =>
-      val error = RateLookupFailed(s"Error during decoding currencies for rates request, from = $from, to = $to")
-      logger.warn(error.getMessage)
+      val msg = s"Error during decoding currencies for rates request, from = $from, to = $to"
+      val error = RateLookupFailed(msg)
+      logger.warn(msg)
 
       BadRequest(error.asJson)
   }

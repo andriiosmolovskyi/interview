@@ -1,7 +1,7 @@
 package forex
 
 import cats.arrow.FunctionK
-import cats.effect.Async
+import cats.effect.{Async, Ref}
 import forex.config.ApplicationConfig
 import forex.http.rates.RatesHttpRoutes
 import forex.programs._
@@ -10,13 +10,14 @@ import forex.util.SchedulerAdaptor
 import fs2.io.net.Network
 import org.http4s._
 import org.http4s.ember.client.EmberClientBuilder
-import org.http4s.server.middleware.{ AutoSlash, Timeout }
+import org.http4s.server.middleware.{AutoSlash, Timeout}
 
 import scala.concurrent.Future
 import scala.concurrent.duration.DurationInt
 
 class Module[F[_]: Async](config: ApplicationConfig,
                           schedulerAdaptor: SchedulerAdaptor,
+                          cacheBlockFlag: Ref[F, Boolean],
                           mapper: FunctionK[Future, F],
                           mapperF: FunctionK[F, Future])(
     implicit network: Network[F]
@@ -27,7 +28,7 @@ class Module[F[_]: Async](config: ApplicationConfig,
   private val httpRatesService: RatesService[F]   = RatesServices.http[F](clientResource, config.oneFrame)
   private val cachedRatesService: RatesService[F] = RatesServices.cached[F](httpRatesService, mapper, mapperF)
   private val scheduledCachedRatesService: RatesService[F] =
-    RatesServices.cachedWithScheduler[F](httpRatesService, schedulerAdaptor, mapper, mapperF)
+    RatesServices.cachedWithScheduler[F](httpRatesService, schedulerAdaptor, cacheBlockFlag, mapper, mapperF)
   private val ratesProgram: RatesProgram[F] = RatesProgram[F](
     if (config.oneFrame.schedulerMode) scheduledCachedRatesService else cachedRatesService
   )

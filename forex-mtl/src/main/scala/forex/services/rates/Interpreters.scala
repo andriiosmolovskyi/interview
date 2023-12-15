@@ -1,8 +1,8 @@
 package forex.services.rates
 
 import cats.arrow.FunctionK
-import cats.effect.Resource
-import cats.effect.kernel.{ Async, Concurrent }
+import cats.effect.{Ref, Resource}
+import cats.effect.kernel.{Async, Concurrent}
 import forex.config.OneFrameConfig
 import forex.services.rates.interpreters._
 import forex.util.SchedulerAdaptor
@@ -21,7 +21,8 @@ object Interpreters {
 
   def cachedWithScheduler[F[_]: Async](decorated: Algebra[F],
                                        schedulerAdaptor: SchedulerAdaptor,
+                                       cacheBlockFlag: Ref[F, Boolean],
                                        mapper: FunctionK[Future, F],
                                        mapperF: FunctionK[F, Future]): Algebra[F] =
-    new OneFrameScheduledCacheDecorator[F](decorated, schedulerAdaptor, mapper, mapperF)
+    new OneFrameScheduledCacheDecorator[F](decorated, schedulerAdaptor, cacheBlockFlag, mapper, mapperF)
 }

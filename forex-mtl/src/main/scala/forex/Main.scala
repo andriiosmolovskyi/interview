@@ -18,19 +18,24 @@ object Main extends IOApp {
 
   private val schedulerAdaptor = new DefaultSchedulerAdaptor()
   override def run(args: List[String]): IO[ExitCode] =
-    new Application[IO]
-      .build(schedulerAdaptor, futureToIOMapper, ioToFutureMapper(runtime))
-      .use(_ => IO.never)
-      .as(ExitCode.Success)
+    Ref.of[IO, Boolean](false).flatMap { cacheFlag =>
+      new Application[IO]
+        .build(schedulerAdaptor, cacheFlag, futureToIOMapper, ioToFutureMapper(runtime))
+        .use(_ => IO.never)
+        .as(ExitCode.Success)
+    }
 }
 
 class Application[F[_]: Async] {
 
-  def build(schedulerAdaptor: SchedulerAdaptor, mapper: FunctionK[Future, F], mapperF: FunctionK[F, Future])(
+  def build(schedulerAdaptor: SchedulerAdaptor,
+            cacheBlockFlag: Ref[F, Boolean],
+            mapper: FunctionK[Future, F],
+            mapperF: FunctionK[F, Future])(
       implicit network: Network[F]
   ): Resource[F, Server] = {
     val config = Config.load("app")
-    val module = new Module[F](config, schedulerAdaptor, mapper, mapperF)
+    val module = new Module[F](config, schedulerAdaptor, cacheBlockFlag, mapper, mapperF)
 
     EmberServerBuilder
       .default[F]

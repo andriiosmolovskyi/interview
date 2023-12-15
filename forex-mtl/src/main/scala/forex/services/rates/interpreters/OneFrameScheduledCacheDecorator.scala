@@ -1,24 +1,17 @@
 package forex.services.rates.interpreters
 
+import cats.Applicative
 import cats.arrow.FunctionK
-import cats.effect.kernel.Concurrent
-import cats.effect.{ Clock, Ref, Temporal }
-import cats.implicits.{
-  catsSyntaxApplicativeError,
-  catsSyntaxApplicativeId,
-  catsSyntaxEitherId,
-  toFlatMapOps,
-  toFunctorOps,
-  toShow
-}
-import com.github.blemale.scaffeine.{ AsyncCache, Scaffeine }
-import forex.domain.{ Pair, Rate }
-import forex.services.rates.errors.{ cacheLookupError, OneFrameLookupBadResponse, OneFrameLookupNotFound }
-import forex.services.rates.{ errors, Algebra }
-import forex.util.{ Logging, SchedulerAdaptor }
+import cats.effect.{Clock, Ref, Temporal}
+import cats.implicits.{catsSyntaxApplicativeError, catsSyntaxApplicativeId, catsSyntaxEitherId, toFlatMapOps, toFunctorOps, toShow}
+import com.github.blemale.scaffeine.{AsyncCache, Scaffeine}
+import forex.domain.{Pair, Rate}
+import forex.services.rates.errors.{OneFrameLookupBadResponse, OneFrameLookupNotFound, cacheLookupError}
+import forex.services.rates.{Algebra, errors}
+import forex.util.{Logging, SchedulerAdaptor}
 
 import scala.concurrent.duration.DurationInt
-import scala.concurrent.{ Await, Future }
+import scala.concurrent.{Await, Future}
 
 // This approach created as alternative to OneFrameCacheDecorator to avoid additional CPU load
 // Greatest solution would be create own cache for such proposes
@@ -34,7 +27,7 @@ class OneFrameScheduledCacheDecorator[F[_]: Temporal](underlying: Algebra[F],
 
   // From functional requirements usage of one token is limited by 1000 times per day
   // So by using scheduler with interval 4 minutes token will be used 360 times
-  // In case when external service down we will retry each request 48 times
+  // In case when external service down we will retry each request max 48 times
   schedulerAdaptor.scheduleTask(() => Await.result(mapperF(cacheUpdateScheduleJob()), 4.minutes), 4.minutes)
 
   // According to functional requirements max TTL for the currency rate is 5 minutes
@@ -110,45 +103,39 @@ class OneFrameScheduledCacheDecorator[F[_]: Temporal](underlying: Algebra[F],
   // We doing additional request only in cases when service was unavailable or internal error occurs
   // So no new token will be used for new attempt
   // In case if service down - it will block access to cache until new value will be added to the cache
-  // Attempt limit is 48 because new scheduled task will be executed each 4 minutes and timeout on client is 5 seconds
   private def cacheUpdateScheduleJob(): F[Unit] =
     for {
       _ <- cacheBlockFlag.set(true)
-      _ <- getForAllPairsWithRetry()
+      _ <- Temporal[F].timeoutTo(getForAllPairsWithRetry(), 4.minutes, Applicative[F].unit)
       _ <- cacheBlockFlag.set(false)
     } yield ()
 
   private def getForAllPairsWithRetry(attempt: Int = 1): F[Unit] =
-    if (attempt <= 48) {
-      Clock[F].realTime.flatMap { startTime =>
-        getFromUnderlying(AllPossiblePairs)
-          .map { rates =>
-            logger.info(
-              s"Adding new values to the cache after scheduled job execution: ${rates.map(_.show).mkString(" ,")}"
-            )
-            ratesCache.synchronous().putAll(rates)
-          }
-          .recoverWith {
-            case e: OneFrameLookupNotFound =>
-              logger.error(e)(s"Cannot execute update cache scheduled job, no values found in OneFrame")
-              // It throws exception here because we should not receive 404 from OneFrame for AllPossiblePairs list
-              throw e
-            case e: OneFrameLookupBadResponse =>
-              logger.error(e)(s"Cannot execute update cache scheduled job, bad response from OneFrame")
-              Concurrent[F].unit
-            case e =>
-              logger.error(e)(s"Cannot execute update cache scheduled job, num of attempts = $attempt")
-              Clock[F].realTime.flatMap { endTime =>
-                val processingTime = endTime.minus(startTime)
-                if (processingTime < 5.second)
-                  Temporal[F].delayBy(getForAllPairsWithRetry(attempt + 1), 5.second.minus(processingTime))
-                else getForAllPairsWithRetry(attempt + 1)
-              }
-          }
-      }
-    } else {
-      logger.error(s"Cannot execute update cache scheduled job, limit of attempts exceeded, attempts = $attempt")
-      Concurrent[F].unit
+    Clock[F].realTime.flatMap { startTime =>
+      getFromUnderlying(AllPossiblePairs)
+        .map { rates =>
+          logger.info(
+            s"Adding new values to the cache after scheduled job execution: ${rates.map(_.show).mkString(" ,")}"
+          )
+          ratesCache.synchronous().putAll(rates)
+        }
+        .recoverWith {
+          case e: OneFrameLookupNotFound =>
+            logger.error(e)(s"Cannot execute update cache scheduled job, no values found in OneFrame")
+            // It throws exception here because we should not receive 404 from OneFrame for AllPossiblePairs list
+            throw e
+          case e: OneFrameLookupBadResponse =>
+            logger.error(e)(s"Cannot execute update cache scheduled job, bad response from OneFrame")
+            Applicative[F].unit
+          case e =>
+            logger.error(e)(s"Cannot execute update cache scheduled job, num of attempts = $attempt")
+            Clock[F].realTime.flatMap { endTime =>
+              val processingTime = endTime.minus(startTime)
+              if (processingTime < 5.second)
+                Temporal[F].delayBy(getForAllPairsWithRetry(attempt + 1), 5.second.minus(processingTime))
+              else getForAllPairsWithRetry(attempt + 1)
+            }
+        }
     }
 
   private def acquireCache(): F[AsyncCache[Pair, Rate]] =

@@ -75,7 +75,7 @@ class OneFrameScheduledCacheDecorator[F[_]: Temporal](underlying: Algebra[F],
   // We doing additional request only in cases when service was unavailable or internal error occurs
   // So no new token will be used for new attempt
   private def getForAllPairsWithTimeout(): F[Map[Pair, Rate]] =
-    getForAllPairsWithRetry()
+    Temporal[F].timeoutTo(getForAllPairsWithRetry(), 5.minutes, Map.empty[Pair, Rate].pure[F])
 
   private def getForAllPairsWithRetry(attempt: Int = 1): F[Map[Pair, Rate]] =
     Clock[F].realTime.flatMap { startTime =>

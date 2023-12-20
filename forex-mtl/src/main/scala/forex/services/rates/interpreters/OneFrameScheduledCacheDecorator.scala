@@ -1,31 +1,22 @@
 package forex.services.rates.interpreters
 
-import cats.arrow.FunctionK
-import cats.effect.{ Clock, Temporal }
-import cats.implicits.{
-  catsSyntaxApplicativeError,
-  catsSyntaxApplicativeId,
-  catsSyntaxEitherId,
-  toFlatMapOps,
-  toFunctorOps,
-  toShow
-}
-import forex.domain.{ Pair, Rate }
-import forex.services.rates.errors.{ cacheLookupError, OneFrameLookupBadResponse, OneFrameLookupNotFound }
-import forex.services.rates.{ errors, Algebra }
+import cats.effect.{Clock, Temporal}
+import cats.implicits._
+import forex.domain.{Pair, Rate}
+import forex.services.rates.errors.{OneFrameLookupBadResponse, OneFrameLookupNotFound, cacheLookupError}
+import forex.services.rates.{Algebra, errors}
 import forex.util._
 
-import scala.concurrent.Future
-import scala.concurrent.duration.DurationInt
+import scala.concurrent.duration.{DurationInt, FiniteDuration}
 
 // This approach created as alternative to OneFrameCacheDecorator to avoid additional CPU load
 // Greatest solution would be create own cache for such proposes
 // But it would take too much time as for test assigment
 // I personally like OneFrameCacheDecorator more
 class OneFrameScheduledCacheDecorator[F[_]: Temporal](underlying: Algebra[F],
-                                                      mapperF: FunctionK[F, Future],
                                                       cacheAdapter: CacheAdapter[F, Pair, Rate],
-                                                      schedulerAdapter: SchedulerAdapter[F])
+                                                      schedulerAdapter: SchedulerAdapter[F, Unit],
+                                                      interval: FiniteDuration)
     extends Algebra[F]
     with Logging {
 
@@ -35,8 +26,10 @@ class OneFrameScheduledCacheDecorator[F[_]: Temporal](underlying: Algebra[F],
 
   // According to functional requirements max TTL for the currency rate is 5 minutes
   // Because of this cache used to decrease latency and avoid unnecessary load of OneFrame
-  private val cache: DefaultScheduledCache[F, Pair, Rate] =
-    ScheduledCache.default(cacheAdapter, schedulerAdapter, _ => getForAllPairsWithTimeout(), mapperF, 5.minutes)
+  private val cache: DefaultScheduledCache[F, Pair, Rate] = {
+    // TODO: Create config for intervals
+    ScheduledCache.default(cacheAdapter, schedulerAdapter, getForAllPairsWithTimeout, interval)
+  }
 
   override def get(request: Pair): F[Either[errors.Error, Rate]] =
     cache.get(request).attempt.map {
@@ -74,8 +67,9 @@ class OneFrameScheduledCacheDecorator[F[_]: Temporal](underlying: Algebra[F],
   // In case if service is not accessible it will try several times to get value from the service
   // We doing additional request only in cases when service was unavailable or internal error occurs
   // So no new token will be used for new attempt
-  private def getForAllPairsWithTimeout(): F[Map[Pair, Rate]] =
-    Temporal[F].timeoutTo(getForAllPairsWithRetry(), 5.minutes, Map.empty[Pair, Rate].pure[F])
+  private def getForAllPairsWithTimeout: Function[Unit, F[Map[Pair, Rate]]] = { _ =>
+    Temporal[F].timeoutTo(getForAllPairsWithRetry(), interval, Map.empty[Pair, Rate].pure[F])
+  }
 
   private def getForAllPairsWithRetry(attempt: Int = 1): F[Map[Pair, Rate]] =
     Clock[F].realTime.flatMap { startTime =>

@@ -29,7 +29,7 @@ object Main extends IOApp {
 
 class Application[F[_]: Async] {
 
-  def build(schedulerAdaptor: SchedulerAdapter[F], mapper: FunctionK[Future, F], mapperF: FunctionK[F, Future])(
+  def build(schedulerAdaptor: SchedulerAdapter[F, Unit], mapper: FunctionK[Future, F], mapperF: FunctionK[F, Future])(
       implicit network: Network[F]
   ): Resource[F, Server] = {
     val config = Config.load("app")

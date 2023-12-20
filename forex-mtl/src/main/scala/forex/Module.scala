@@ -17,7 +17,7 @@ import scala.concurrent.Future
 import scala.concurrent.duration.DurationInt
 
 class Module[F[_]: Async](config: ApplicationConfig,
-                          schedulerAdapter: SchedulerAdapter[F],
+                          schedulerAdapter: SchedulerAdapter[F, Unit],
                           mapper: FunctionK[Future, F],
                           mapperF: FunctionK[F, Future])(
     implicit network: Network[F]
@@ -30,7 +30,7 @@ class Module[F[_]: Async](config: ApplicationConfig,
   // TODO: Create additional config for cache values
   private val cacheAdapter = CacheAdapter.scaffeine[F, Pair, Rate](mapper, mapperF, 5.minutes, 1000)
   private val scheduledCachedRatesService: RatesService[F] =
-    RatesServices.cachedWithScheduler[F](httpRatesService, mapperF, cacheAdapter, schedulerAdapter)
+    RatesServices.cachedWithScheduler[F](httpRatesService, cacheAdapter, schedulerAdapter, 5.minutes)
   private val ratesProgram: RatesProgram[F] = RatesProgram[F](
     if (config.oneFrame.schedulerMode) scheduledCachedRatesService else cachedRatesService
   )

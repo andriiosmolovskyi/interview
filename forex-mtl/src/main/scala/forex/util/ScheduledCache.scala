@@ -2,10 +2,10 @@ package forex.util
 
 import cats.arrow.FunctionK
 import cats.effect.Temporal
-import cats.implicits.{ toFlatMapOps, toFunctorOps }
+import cats.implicits.{toFlatMapOps, toFunctorOps}
 
-import scala.concurrent.{ Await, Future }
 import scala.concurrent.duration.FiniteDuration
+import scala.concurrent.{Await, Future}
 
 trait ScheduledCache[F[_], K, V] {
   def get(key: K): F[V]

@@ -3,9 +3,10 @@ package forex
 import akka.actor.ActorSystem
 import cats.arrow.FunctionK
 import cats.effect._
-import com.comcast.ip4s.{ Host, Port }
+import cats.effect.unsafe.IORuntime
+import com.comcast.ip4s.{Host, Port}
 import forex.config._
-import forex.util.{ futureToIOMapper, ioToFutureMapper, SchedulerAdapter }
+import forex.util.{SchedulerAdapter, futureToIOMapper, ioToFutureMapper}
 import fs2.io.net.Network
 import org.http4s.ember.server.EmberServerBuilder
 import org.http4s.server.Server
@@ -16,7 +17,7 @@ object Main extends IOApp {
 
   implicit private val as: ActorSystem = ActorSystem.apply()
 
-  private val mapper = ioToFutureMapper(runtime)
+  private val mapper = ioToFutureMapper(IORuntime.global)
 
   private val schedulerAdaptor = SchedulerAdapter.akka(mapper)
   override def run(args: List[String]): IO[ExitCode] =

@@ -14,6 +14,8 @@ trait SchedulerAdapter[F[_]] {
                       initialDelay: FiniteDuration = Duration.Zero): F[Unit]
 }
 
+
+// TODO: Implement functional scheduler without akka
 class AkkaSchedulerAdapter[F[_]: Temporal](mapperF: FunctionK[F, Future])(
     implicit as: ActorSystem
 ) extends SchedulerAdapter[F] {

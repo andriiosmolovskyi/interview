@@ -1,6 +1,8 @@
 package forex.util
 
 import cats.arrow.FunctionK
+import cats.effect.Temporal
+import cats.implicits.{ toFlatMapOps, toFunctorOps }
 
 import scala.concurrent.{ Await, Future }
 import scala.concurrent.duration.FiniteDuration
@@ -11,7 +13,7 @@ trait ScheduledCache[F[_], K, V] {
   def getAll(keys: List[K]): F[Map[K, V]]
 }
 
-class DefaultScheduledCache[F[_], K, V](cacheAdapter: CacheAdapter[F, K, V],
+class DefaultScheduledCache[F[_]: Temporal, K, V](cacheAdapter: CacheAdapter[F, K, V],
                                                   schedulerAdapter: SchedulerAdapter[F],
                                                   scheduleTask: Function[Unit, F[Map[K, V]]],
                                                   mapperF: FunctionK[F, Future],
@@ -19,8 +21,10 @@ class DefaultScheduledCache[F[_], K, V](cacheAdapter: CacheAdapter[F, K, V],
     extends ScheduledCache[F, K, V] {
 
   private def start(): F[Unit] = {
+    val scheduleTaskWithCacheUpdate =
+      scheduleTask.andThen(_.flatMap(result => cacheAdapter.set(result).map(_ => result)))
 
-    schedulerAdapter.scheduleTask(scheduleTask, interval)
+    schedulerAdapter.scheduleTask(scheduleTaskWithCacheUpdate, interval)
   }
 
   def get(key: K): F[V] = cacheAdapter.get(key)
@@ -32,7 +36,7 @@ class DefaultScheduledCache[F[_], K, V](cacheAdapter: CacheAdapter[F, K, V],
 }
 
 object ScheduledCache {
-  def default[F[_], K, V](cacheAdapter: CacheAdapter[F, K, V],
+  def default[F[_]: Temporal, K, V](cacheAdapter: CacheAdapter[F, K, V],
                                     schedulerAdapter: SchedulerAdapter[F],
                                     scheduleTask: Function[Unit, F[Map[K, V]]],
                                     mapperF: FunctionK[F, Future],

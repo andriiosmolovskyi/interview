@@ -2,8 +2,8 @@ package forex.util
 
 import akka.actor.ActorSystem
 import cats.arrow.FunctionK
-import cats.effect.unsafe.IORuntime
-import cats.effect.{IO, Temporal}
+import cats.effect.Temporal
+import cats.implicits._
 
 import scala.concurrent.duration.{Duration, FiniteDuration}
 import scala.concurrent.{Await, ExecutionContext, Future}
@@ -14,23 +14,22 @@ trait SchedulerAdapter[F[_]] {
                       initialDelay: FiniteDuration = Duration.Zero): F[Unit]
 }
 
-class AkkaSchedulerAdapter[F[_]: Temporal](mapperF: FunctionK[IO, Future], mapper: FunctionK[F, IO])(
-    implicit as: ActorSystem, runtime: IORuntime
-) extends SchedulerAdapter[IO] {
+class AkkaSchedulerAdapter[F[_]: Temporal](mapperF: FunctionK[F, Future])(
+    implicit as: ActorSystem
+) extends SchedulerAdapter[F] {
   implicit private val ec: ExecutionContext = as.dispatcher
 
   override def scheduleTask[A](job: Function[Unit, F[A]],
                                interval: FiniteDuration,
-                               initialDelay: FiniteDuration): F[Unit] = {
-    val result = mapper(job.apply(())).unsafeRunSync()
-
-    println(ec)
-    println(result)
-    Temporal[F].unit
-  }
+                               initialDelay: FiniteDuration): F[Unit] =
+    as.scheduler
+      .scheduleAtFixedRate(initialDelay, interval)(() => Await.result(mapperF(job.apply(())).void, interval))
+      .pure[F]
+      .void
 }
 
 object SchedulerAdapter {
   def akka[F[_]: Temporal](mapperF: FunctionK[F, Future])(implicit as: ActorSystem): AkkaSchedulerAdapter[F] =
     new AkkaSchedulerAdapter[F](mapperF)
 }
+

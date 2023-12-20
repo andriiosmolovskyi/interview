@@ -16,10 +16,12 @@ object Main extends IOApp {
 
   implicit private val as: ActorSystem = ActorSystem.apply()
 
-  private val schedulerAdaptor = SchedulerAdapter.akka(ioToFutureMapper(runtime))
+  private val mapper = ioToFutureMapper(runtime)
+
+  private val schedulerAdaptor = SchedulerAdapter.akka(mapper)
   override def run(args: List[String]): IO[ExitCode] =
     new Application[IO]
-      .build(schedulerAdaptor, futureToIOMapper, ioToFutureMapper(runtime))
+      .build(schedulerAdaptor, futureToIOMapper, mapper)
       .use(_ => IO.never)
       .as(ExitCode.Success)
 }

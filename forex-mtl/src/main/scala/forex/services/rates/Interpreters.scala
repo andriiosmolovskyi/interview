@@ -1,11 +1,12 @@
 package forex.services.rates
 
 import cats.arrow.FunctionK
-import cats.effect.{Ref, Resource}
-import cats.effect.kernel.{Async, Concurrent}
+import cats.effect.Resource
+import cats.effect.kernel.{ Async, Concurrent }
 import forex.config.OneFrameConfig
+import forex.domain.{ Pair, Rate }
 import forex.services.rates.interpreters._
-import forex.util.SchedulerAdaptor
+import forex.util.{ CacheAdapter, SchedulerAdapter }
 import org.http4s.client.Client
 
 import scala.concurrent.Future
@@ -20,9 +21,8 @@ object Interpreters {
     new OneFrameCacheDecorator[F](decorated, mapper, mapperF)
 
   def cachedWithScheduler[F[_]: Async](decorated: Algebra[F],
-                                       schedulerAdaptor: SchedulerAdaptor,
-                                       cacheBlockFlag: Ref[F, Boolean],
-                                       mapper: FunctionK[Future, F],
-                                       mapperF: FunctionK[F, Future]): Algebra[F] =
-    new OneFrameScheduledCacheDecorator[F](decorated, schedulerAdaptor, cacheBlockFlag, mapper, mapperF)
+                                       mapperF: FunctionK[F, Future],
+                                       cacheAdapter: CacheAdapter[F, Pair, Rate],
+                                       schedulerAdapter: SchedulerAdapter[F]): Algebra[F] =
+    new OneFrameScheduledCacheDecorator[F](decorated, mapperF, cacheAdapter, schedulerAdapter)
 }

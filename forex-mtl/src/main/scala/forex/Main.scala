@@ -3,9 +3,10 @@ package forex
 import akka.actor.ActorSystem
 import cats.arrow.FunctionK
 import cats.effect._
-import com.comcast.ip4s.{ Host, Port }
+import cats.effect.unsafe.IORuntime
+import com.comcast.ip4s.{Host, Port}
 import forex.config._
-import forex.util.{ futureToIOMapper, ioToFutureMapper, DefaultSchedulerAdaptor, SchedulerAdaptor }
+import forex.util.{SchedulerAdapter, futureToIOMapper, ioToFutureMapper}
 import fs2.io.net.Network
 import org.http4s.ember.server.EmberServerBuilder
 import org.http4s.server.Server
@@ -16,26 +17,23 @@ object Main extends IOApp {
 
   implicit private val as: ActorSystem = ActorSystem.apply()
 
-  private val schedulerAdaptor = new DefaultSchedulerAdaptor()
+  private val mapper = ioToFutureMapper(IORuntime.global)
+
+  private val schedulerAdaptor = SchedulerAdapter.akka(mapper)
   override def run(args: List[String]): IO[ExitCode] =
-    Ref.of[IO, Boolean](false).flatMap { cacheFlag =>
-      new Application[IO]
-        .build(schedulerAdaptor, cacheFlag, futureToIOMapper, ioToFutureMapper(runtime))
-        .use(_ => IO.never)
-        .as(ExitCode.Success)
-    }
+    new Application[IO]
+      .build(schedulerAdaptor, futureToIOMapper, mapper)
+      .use(_ => IO.never)
+      .as(ExitCode.Success)
 }
 
 class Application[F[_]: Async] {
 
-  def build(schedulerAdaptor: SchedulerAdaptor,
-            cacheBlockFlag: Ref[F, Boolean],
-            mapper: FunctionK[Future, F],
-            mapperF: FunctionK[F, Future])(
+  def build(schedulerAdaptor: SchedulerAdapter[F, Unit], mapper: FunctionK[Future, F], mapperF: FunctionK[F, Future])(
       implicit network: Network[F]
   ): Resource[F, Server] = {
     val config = Config.load("app")
-    val module = new Module[F](config, schedulerAdaptor, cacheBlockFlag, mapper, mapperF)
+    val module = new Module[F](config, schedulerAdaptor, mapper, mapperF)
 
     EmberServerBuilder
       .default[F]

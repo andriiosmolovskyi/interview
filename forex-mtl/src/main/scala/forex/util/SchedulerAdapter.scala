@@ -32,3 +32,4 @@ object SchedulerAdapter {
   def akka[F[_]](mapperF: FunctionK[F, Future])(implicit as: ActorSystem): AkkaSchedulerAdapter[F] =
     new AkkaSchedulerAdapter[F](mapperF)
 }
+

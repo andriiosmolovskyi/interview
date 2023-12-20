@@ -2,11 +2,11 @@ package forex.services.rates
 
 import cats.arrow.FunctionK
 import cats.effect.Resource
-import cats.effect.kernel.{Async, Concurrent}
+import cats.effect.kernel.{ Async, Concurrent }
 import forex.config.OneFrameConfig
 import forex.domain.{Pair, Rate}
 import forex.services.rates.interpreters._
-import forex.util.{CacheAdapter, SchedulerAdapter}
+import forex.util.{ CacheAdapter, SchedulerAdapter }
 import org.http4s.client.Client
 
 import scala.concurrent.Future

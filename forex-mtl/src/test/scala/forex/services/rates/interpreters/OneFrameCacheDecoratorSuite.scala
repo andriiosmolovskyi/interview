@@ -3,18 +3,21 @@ package forex.services.rates.interpreters
 import cats.effect.IO
 import cats.effect.unsafe.IORuntime
 import forex.domain._
-import forex.util.{futureToIOMapper, ioToFutureMapper}
+import forex.util.{CacheAdapter, futureToIOMapper, ioToFutureMapper}
 import org.mockito.ArgumentMatchers.any
 import org.mockito.Mockito.{times, verify, when}
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
 import org.scalatestplus.mockito.MockitoSugar
 
+import scala.concurrent.duration.DurationInt
+
 class OneFrameCacheDecoratorSuite extends AnyWordSpec with Matchers with MockitoSugar {
   implicit val runtime: IORuntime = cats.effect.unsafe.IORuntime.global
 
   private val ratesService       = mock[OneFrameHttp[IO]]
-  private val cachedRatesService = new OneFrameCacheDecorator[IO](ratesService, futureToIOMapper, ioToFutureMapper)
+  private val cacheAdapter = CacheAdapter.scaffeine[IO, Pair, Rate](futureToIOMapper, ioToFutureMapper, 5.minutes, 1000)
+  private val cachedRatesService = new OneFrameCacheDecorator[IO](ratesService, cacheAdapter)
 
   // TODO: Rewrite this test to avoid using any matcher
   "OneFrameCacheDecorator" should {

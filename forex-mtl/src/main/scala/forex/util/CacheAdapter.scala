@@ -13,6 +13,8 @@ trait CacheAdapter[F[_], K, V] {
   def get(key: K): F[V]
   // Blocks on empty
   def getAll(keys: List[K]): F[Map[K, V]]
+  def getWithFallback(key: K, mappingFunction: K => F[V]): F[V]
+  def getAllWithFallback(keys: List[K], mappingFunction: List[K] => F[Map[K, V]]): F[Map[K, V]]
   def set(entities: Map[K, V]): F[Unit]
 }
 
@@ -24,7 +26,7 @@ class SCaffeineCacheAdapter[F[_]: Temporal, K, V](asyncCache: AsyncCache[K, V],
   override def get(key: K): F[V] =
     asyncCache.getIfPresent(key).map(mapper.apply).traverse(identity).flatMap {
       case Some(value) => value.pure[F]
-      // Not the best solution, should be replaced with something based on Deferred, MVar or similar,
+      //TODO: Not the best solution, should be replaced with something based on Deferred, MVar or similar,
       // so it will block get until value will be available and don't lookup every time
       case None => Temporal[F].sleep(100.millis).flatMap(_ => get(key))
     }
@@ -33,7 +35,7 @@ class SCaffeineCacheAdapter[F[_]: Temporal, K, V](asyncCache: AsyncCache[K, V],
     asyncCache.getAllFuture(
       keys, {
         case keys if keys.nonEmpty =>
-          // Not the best solution, should be replaced with something based on Deferred, MVar or similar,
+          //TODO: Not the best solution, should be replaced with something based on Deferred, MVar or similar,
           // so it will block get until value will be available and don't lookup every time
           mapperF(Temporal[F].sleep(100.millis).flatMap(_ => getAll(keys.toList)))
         case _ => Future.successful(Map.empty)
@@ -43,6 +45,14 @@ class SCaffeineCacheAdapter[F[_]: Temporal, K, V](asyncCache: AsyncCache[K, V],
 
   override def set(entities: Map[K, V]): F[Unit] =
     asyncCache.synchronous().pure[F].map(_.putAll(entities))
+
+  override def getAllWithFallback(keys: List[K], mappingFunction: List[K] => F[Map[K, V]]): F[Map[K, V]] = mapper {
+    asyncCache.getAllFuture(keys, iterable => mapperF(mappingFunction(iterable.toList)))
+  }
+
+  override def getWithFallback(key: K, mappingFunction: K => F[V]): F[V] = mapper {
+    asyncCache.getFuture(key, k => mapperF(mappingFunction(k)))
+  }
 }
 
 object CacheAdapter {

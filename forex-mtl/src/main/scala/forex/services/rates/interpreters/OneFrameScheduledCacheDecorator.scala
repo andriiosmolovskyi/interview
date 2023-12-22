@@ -7,7 +7,7 @@ import forex.services.rates.errors.{OneFrameLookupBadResponse, OneFrameLookupNot
 import forex.services.rates.{Algebra, errors}
 import forex.util._
 
-import scala.concurrent.duration.{DurationInt, FiniteDuration}
+import scala.concurrent.duration.FiniteDuration
 
 // This approach created as alternative to OneFrameCacheDecorator to avoid additional CPU load
 // Greatest solution would be create own cache for such proposes
@@ -16,7 +16,8 @@ import scala.concurrent.duration.{DurationInt, FiniteDuration}
 class OneFrameScheduledCacheDecorator[F[_]: Temporal](underlying: Algebra[F],
                                                       cacheAdapter: CacheAdapter[F, Pair, Rate],
                                                       schedulerAdapter: SchedulerAdapter[F, Unit],
-                                                      interval: FiniteDuration)
+                                                      interval: FiniteDuration,
+                                                      oneFrameTimeout: FiniteDuration)
     extends Algebra[F]
     with Logging {
 
@@ -92,8 +93,8 @@ class OneFrameScheduledCacheDecorator[F[_]: Temporal](underlying: Algebra[F],
             logger.error(e)(s"Cannot execute update cache scheduled job, num of attempts = $attempt")
             Clock[F].realTime.flatMap { endTime =>
               val processingTime = endTime.minus(startTime)
-              if (processingTime < 5.second)
-                Temporal[F].delayBy(getForAllPairsWithRetry(attempt + 1), 5.second.minus(processingTime))
+              if (processingTime < oneFrameTimeout)
+                Temporal[F].delayBy(getForAllPairsWithRetry(attempt + 1), oneFrameTimeout.minus(processingTime))
               else getForAllPairsWithRetry(attempt + 1)
             }
         }

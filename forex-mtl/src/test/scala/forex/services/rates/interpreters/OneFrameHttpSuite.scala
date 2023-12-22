@@ -1,21 +1,23 @@
 package forex.services.rates.interpreters
 
 import cats.effect.unsafe.IORuntime
-import cats.effect.{ IO, Resource }
+import cats.effect.{IO, Resource}
 import forex.config.OneFrameConfig
 import forex.domain._
 import org.http4s.client.Client
-import org.http4s.{ EntityDecoder, Request, Response }
+import org.http4s.{EntityDecoder, Request, Response}
 import org.mockito.ArgumentMatchers.any
 import org.mockito.Mockito.when
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
 import org.scalatestplus.mockito.MockitoSugar
 
+import scala.concurrent.duration.DurationInt
+
 class OneFrameHttpSuite extends AnyWordSpec with Matchers with MockitoSugar {
   implicit val runtime: IORuntime = cats.effect.unsafe.IORuntime.global
 
-  private val oneFrameConfig                 = OneFrameConfig("http://localhost", "token")
+  private val oneFrameConfig                 = OneFrameConfig("http://localhost", "token", 5.seconds)
   private val client                         = mock[Client[IO]]
   private val clientResource                 = Resource.pure[IO, Client[IO]](client)
   private val ratesService: OneFrameHttp[IO] = new OneFrameHttp[IO](clientResource, oneFrameConfig)
